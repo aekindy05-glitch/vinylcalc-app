@@ -1096,7 +1096,19 @@ function shoelaceArea(points) {
 }
 
 function closeSketchShape() {
-  if (sketchPoints.length < 3) { alert("ต้องมีอย่างน้อย 3 จุดก่อนปิดรูป"); return; }
+  // ถ้ายังไม่ได้วาดเอง แต่พิมพ์กว้าง×ยาวไว้ ให้ใช้สี่เหลี่ยมนั้นเป็นผัง
+  if (sketchPoints.length === 1 && !sketchClosed) {
+    const pw = parseFloat($("roomW").value), pl = parseFloat($("roomL").value);
+    if (pw > 0 && pl > 0) {
+      sketchPoints = [{x:0,y:0},{x:pw,y:0},{x:pw,y:pl},{x:0,y:pl}];
+      sketchSegments = [
+        {from:0,to:1,dir:"right",dist:pw},
+        {from:1,to:2,dir:"down",dist:pl},
+        {from:2,to:3,dir:"left",dist:pw}
+      ];
+    }
+  }
+  if (sketchPoints.length < 3) { alert("ต้องมีอย่างน้อย 3 จุดก่อนปิดรูป (หรือพิมพ์ความกว้าง × ความยาวด้านบนแทนก็ได้)"); return; }
   const first = sketchPoints[0];
   const last = sketchPoints[sketchPoints.length - 1];
   if (Math.abs(first.x - last.x) > 0.001 || Math.abs(first.y - last.y) > 0.001) {
