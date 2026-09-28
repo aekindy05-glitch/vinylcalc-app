@@ -273,15 +273,15 @@
           <input type="number" min="0" step="0.01" placeholder="เช่น 6" id="roomL" />
         </div>
       </div>
-      <button class="mcw-link-btn" id="openSketch" style="margin-bottom:14px;">📐 หรือวาดผังพื้นที่แทน (รองรับซอกหลืบ/มุมเว้า) →</button>
+      
 
-      <div class="mcw-sketch hidden" id="sketchPanel">
+      <div class="mcw-sketch" id="sketchPanel">
         <div class="mcw-sketch-head">
           <div>
             <div style="font-weight:600;font-size:14px;">วาดผังพื้นที่</div>
-            <div style="font-size:12px;color:var(--muted);">เลือกทิศทาง ใส่ระยะ (เมตร) แล้วกด "เพิ่มจุด" ทีละด้าน วนจนครบรูป แล้วกด "ปิดรูป"</div>
+            <div style="font-size:12px;color:var(--muted);">พิมพ์กว้าง × ยาวด้านบนเพื่อดูภาพสี่เหลี่ยมทันที หรือวาดรูปที่มีซอกหลืบเอง: ใส่ระยะ (เมตร) แล้วกดปุ่มทิศทางทีละด้าน จนครบรูป แล้วกด "ปิดรูป"</div>
           </div>
-          <button class="mcw-close" id="closeSketch">✕</button>
+          
         </div>
 
         <div class="mcw-sketch-body">
@@ -860,6 +860,7 @@ $("panelClose").onclick = () => {
 };
 
 ["roomW","roomL","wastage","buffer","rollWidth","rollLength","effWidth"].forEach(id => $(id).addEventListener("input", updateResult));
+["roomW","roomL"].forEach(id => $(id).addEventListener("input", () => renderSketch()));
 $("searchInput").addEventListener("input", runSearch);
 
 rebuildEffectiveProducts();
@@ -1124,7 +1125,21 @@ function renderSketchSegList() {
 
 function renderSketch() {
   const svg = $("sketchSvg");
-  const pts = sketchPoints;
+  let pts = sketchPoints;
+  let segs = sketchSegments;
+  let closed = sketchClosed;
+  let previewArea = null;
+  const pw = parseFloat($("roomW").value), pl = parseFloat($("roomL").value);
+  if (sketchPoints.length === 1 && !sketchClosed && pw > 0 && pl > 0) {
+    // live 2D preview of the typed width x length rectangle
+    pts = [{x:0,y:0},{x:pw,y:0},{x:pw,y:pl},{x:0,y:pl}];
+    segs = [
+      {from:0,to:1,dist:pw},{from:1,to:2,dist:pl},
+      {from:2,to:3,dist:pw},{from:3,to:0,dist:pl}
+    ];
+    closed = true;
+    previewArea = pw * pl;
+  }
   const xs = pts.map(p => p.x), ys = pts.map(p => p.y);
   let minX = Math.min(0, ...xs), maxX = Math.max(0, ...xs);
   let minY = Math.min(0, ...ys), maxY = Math.max(0, ...ys);
@@ -1151,12 +1166,12 @@ function renderSketch() {
   if (pts.length > 1) {
     const pathPts = pts.map(toSvg);
     let d = "M " + pathPts[0].x + " " + pathPts[0].y + " " + pathPts.slice(1).map(p => "L " + p.x + " " + p.y).join(" ");
-    if (sketchClosed) d += " Z";
-    svgContent += '<path d="' + d + '" fill="' + (sketchClosed ? "rgba(20,57,86,0.12)" : "none") + '" stroke="#14395C" stroke-width="2.5" stroke-linejoin="round"/>';
+    if (closed) d += " Z";
+    svgContent += '<path d="' + d + '" fill="' + (closed ? "rgba(20,57,86,0.12)" : "none") + '" stroke="#14395C" stroke-width="2.5" stroke-linejoin="round"/>';
     // segment distance labels
-    sketchSegments.forEach(seg => {
-      const a = toSvg(sketchPoints[seg.from] || pts[seg.from]);
-      const b = seg.to === 0 && sketchClosed ? toSvg(pts[0]) : toSvg(pts[seg.to]);
+    segs.forEach(seg => {
+      const a = toSvg(pts[seg.from]);
+      const b = toSvg(pts[seg.to]);
       const mx = (a.x + b.x) / 2, my = (a.y + b.y) / 2;
       svgContent += '<rect x="' + (mx - 16) + '" y="' + (my - 9) + '" width="32" height="16" rx="3" fill="#FF6B35"/>';
       svgContent += '<text x="' + mx + '" y="' + (my + 4) + '" font-size="10" fill="#fff" text-anchor="middle" font-family="monospace">' + fmt(seg.dist) + '</text>';
@@ -1169,6 +1184,10 @@ function renderSketch() {
     svgContent += '<text x="' + (s.x + 7) + '" y="' + (s.y - 7) + '" font-size="12" font-weight="700" fill="#14395C" font-family="sans-serif">' + pointLabel(i) + '</text>';
   });
 
+  if (previewArea !== null) {
+    const c = toSvg({ x: pw / 2, y: pl / 2 });
+    svgContent += '<text x="' + c.x + '" y="' + c.y + '" font-size="14" font-weight="700" fill="#14395C" text-anchor="middle" font-family="sans-serif">' + fmt(previewArea) + ' ตร.ม.</text>';
+  }
   svg.innerHTML = svgContent;
 }
 
@@ -1179,19 +1198,10 @@ $("sketchUndo").addEventListener("click", undoSketchPoint);
 $("sketchReset").addEventListener("click", resetSketch);
 $("sketchClose").addEventListener("click", closeSketchShape);
 
-$("openSketch").addEventListener("click", () => {
-  $("sketchPanel").classList.remove("hidden");
-  $("openSketch").classList.add("hidden");
-  renderSketch();
-  $("sketchPanel").scrollIntoView({ behavior: "smooth", block: "start" });
-});
-$("closeSketch").addEventListener("click", () => {
-  $("sketchPanel").classList.add("hidden");
-  $("openSketch").classList.remove("hidden");
-});
-
 document.addEventListener("keydown", (e) => {
-  if ($("sketchPanel").classList.contains("hidden")) return;
+  if ($("calcSection").classList.contains("hidden")) return;
+  const t = e.target;
+  if (t && (t.tagName === "INPUT" || t.tagName === "SELECT" || t.tagName === "TEXTAREA") && t.id !== "sketchDist") return;
   const map = { ArrowUp: "up", ArrowDown: "down", ArrowLeft: "left", ArrowRight: "right" };
   if (map[e.key]) {
     e.preventDefault();
@@ -1213,8 +1223,6 @@ $("sketchApply").addEventListener("click", () => {
   $("customAreaValue").textContent = fmt3(customArea);
   $("customAreaBanner").classList.remove("hidden");
   $("manualAreaGrid").classList.add("hidden");
-  $("sketchPanel").classList.add("hidden");
-  $("openSketch").classList.remove("hidden");
   updateResult();
 });
 
