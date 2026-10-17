@@ -573,6 +573,7 @@ function showFbStatus(text, tone) {
 
 function onOverridesChanged() {
   rebuildEffectiveProducts();
+  refreshSelectedFromOverrides();
   $("totalCount").textContent = EFFECTIVE_PRODUCTS.length.toLocaleString("th-TH");
   runSearch();
   if (!$("adminOverlay").classList.contains("hidden")) {
@@ -781,6 +782,27 @@ function dimGlyphSVG(w, l) {
   );
 }
 
+function renderPriceBadge() {
+  const old = document.getElementById("panelPrice");
+  if (old) old.remove();
+  if (selected && selected.price !== null && selected.price !== undefined) {
+    const badge = document.createElement("span");
+    badge.id = "panelPrice";
+    badge.className = "mcw-badge";
+    badge.style.cssText = "margin-left:6px;background:#FFE9DE;color:#7A2E0C;font-weight:700;";
+    badge.textContent = "ราคา " + fmtBaht(selected.price) + " บาท/" + selected.unit;
+    $("panelUnit").insertAdjacentElement("afterend", badge);
+  }
+}
+function refreshSelectedFromOverrides() {
+  if (!selected) return;
+  const fresh = EFFECTIVE_PRODUCTS.find(p => p.code === selected.code);
+  if (!fresh) return;
+  selected = fresh;
+  renderPriceBadge();
+  updateResult();
+}
+
 function selectProduct(p) {
   selected = p;
   $("searchInput").blur();
@@ -792,16 +814,7 @@ function selectProduct(p) {
   $("panelCode").textContent = p.code;
   $("panelTitle").textContent = p.name;
   $("panelUnit").textContent = "หน่วยขาย: " + p.unit;
-  const priceEl = document.getElementById("panelPrice");
-  if (priceEl) priceEl.remove();
-  if (p.price !== null && p.price !== undefined) {
-    const badge = document.createElement("span");
-    badge.id = "panelPrice";
-    badge.className = "mcw-badge";
-    badge.style.marginLeft = "6px";
-    badge.textContent = "ราคา " + fmtBaht(p.price) + " บาท/" + p.unit;
-    $("panelUnit").insertAdjacentElement("afterend", badge);
-  }
+  renderPriceBadge();
 
   const dimsRow = $("dimsRow"), sqmInfo = $("sqmInfo"), noDimInfo = $("noDimInfo"), calcSection = $("calcSection");
   dimsRow.classList.add("hidden");
@@ -1079,6 +1092,7 @@ function renderAdminRows(query) {
       overrides.fields[code][field] = val;
       saveOverrides();
       rebuildEffectiveProducts();
+      refreshSelectedFromOverrides();
     });
   });
   el.querySelectorAll('[data-delete]').forEach(btn => {
